@@ -4,6 +4,15 @@
 
 > **Positioning:** This repo is part of the "Easy Trading Software" suite — production-grade strategy execution + monitoring designed for reliability, reproducibility, and real-world constraints (rate limits, slippage, missing candles, broker quirks).
 
+### Why this project stands out
+
+- **Broker-only data execution** — No synthetic backtest feeds; production path uses live broker data (e.g. E*TRADE) for ORB capture and execution.
+- **Dual-strategy architecture** — ORB core + selective convex overlay (easy0DTE); one capture window, shared validation, separate execution and monitoring.
+- **Risk-first design** — Position caps, redistribution logic, regime filters (e.g. red-day), ADV-based slip guard, holiday/low-liquidity avoidance.
+- **Deployable cloud service** — Cloud Run–ready with modular collector (easyCollector) for separate data pipelines.
+
+*This is a platform system — not just a script.*
+
 ---
 
 ### New here?
@@ -169,6 +178,62 @@ python main.py
 
 See [easyCollector/README.md](easyCollector/README.md) for collector run + deploy (Polygon/Coinbase/Firestore).
 
+**Example output (typical run)**
+
+```text
+[06:45] ORB window captured
+[07:00] Validation candle confirmed
+[07:30] Executing 3 positions
+[10:15] SL hit: SPY -0.32%
+[13:45] TP hit: QQQ +1.8%
+[EOD] Summary: +1.21% net
+```
+
+**Example Telegram alerts**
+
+*Good Morning — system ready:*
+
+```text
+🌅 Good Morning!
+          Friday, January 23, 2026
+
+⏰ Market opens in 1 hour (9:30 AM ET)
+
+🔐 Token Status: ✅ Production Token: Valid
+💎 Status: Trading system ready and operational
+
+📊 Trading Schedule:
+    ORB Capture:    6:30-6:45 AM PT (9:30-9:45 AM ET)
+    SO Window:      7:15-7:30 AM PT (10:15-10:30 AM ET)
+    SO Execution:   7:30 AM PT (10:30 AM ET)
+
+✅ Ready to trade!
+```
+
+*ORB Capture Complete:*
+
+```text
+✅ ORB Capture Complete — 07:21 AM PT (10:21 AM ET)
+✅ Status: All opening ranges captured successfully!
+
+📊 Opening Range Capture: Symbols 139 | Duration 6.2s
+🔮 0DTE ORB Capture:      Symbols 112 | Duration 6.2s
+⚛️ ORB Window: 6:30-6:45 AM PT
+🎯 Next: SO & 0DTE Signal Collection 7:15-7:30 AM PT
+```
+
+*Signal Collection (DEMO):*
+
+```text
+🪽 Trade Signal Collection | DEMO Mode — 04:50 PM PT
+
+📊 Results: Symbols Scanned 147 | ORB Signals 17 | 0DTE Options 38
+📑 Standard Orders Ready: URTY, TNA, SSO, UWM, UDOW, DDM, FAS, ...
+🔮 0DTE Options Ready: SPX, SPY, QQQ, IWM, NVDA, AMD, TSLA, ...
+📡 Signal Window: 7:15-7:30 AM PT
+🚀 Next: ORB & Options Execution 7:30 AM PT
+```
+
 ---
 
 ## Documentation
@@ -191,6 +256,16 @@ See [easyCollector/README.md](easyCollector/README.md) for collector run + deplo
 - **ORB + 0DTE:** Build with root `Dockerfile`; deploy to Cloud Run using `cloud_run_entry.py` as entry.
 - Set `GCP_PROJECT_ID`, region, and inject secrets using your secret manager.
 - See [docs/Cloud.md](docs/Cloud.md).
+
+---
+
+## What this demonstrates for AI / platform roles
+
+- **Real-time decision system design** — Time-bounded capture, validation, and execution with config-driven windows.
+- **Strategy → forecast → execution → monitoring loop** — End-to-end automation with state persistence and alerting.
+- **Risk-aware automation architecture** — Position sizing, regime filters, slip guards, and exit logic as first-class components.
+- **Modular service deployment** — Cloud Run–compatible entrypoint; collector and optimizer can run as separate services.
+- **Data collection separation** — easyCollector and priority_optimizer supply ML-ready snapshots and 89-point data for model training pipelines.
 
 ---
 
