@@ -11,8 +11,6 @@
 - **Risk-first design** — Position caps, redistribution logic, regime filters (e.g. red-day), ADV-based slip guard, holiday/low-liquidity avoidance.
 - **Deployable cloud service** — Cloud Run–ready with modular collector (easyCollector) for separate data pipelines.
 
-*This is a platform system — not just a script.*
-
 ---
 
 ### New here?
