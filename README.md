@@ -257,7 +257,7 @@ See [easyCollector/README.md](easyCollector/README.md) for collector run + deplo
 
 ---
 
-## What this demonstrates for AI / platform roles
+## What this demonstrates in AI Platforms
 
 - **Real-time decision system design** — Time-bounded capture, validation, and execution with config-driven windows.
 - **Strategy → forecast → execution → monitoring loop** — End-to-end automation with state persistence and alerting.
