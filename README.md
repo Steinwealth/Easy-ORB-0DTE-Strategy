@@ -6,17 +6,32 @@
 
 ---
 
+### New here?
+
+| Goal | Where to go |
+|------|-------------|
+| **Run or deploy the app** | [Quick start](#quick-start) |
+| **Understand the system** | [What it does](#what-it-does) · [Repository structure](#repository-structure) |
+| **See proof & performance** | [Evidence](#evidence-validated-baseline) · [Performance & backtest](#performance--backtest) |
+| **Risk & guardrails** | [Risk controls & guardrails](#risk-controls--guardrails) |
+| **Full documentation** | [Documentation](#documentation) · [docs/](docs/) |
+| **Cloud deploy** | [Deployment](#deployment) · [docs/Cloud.md](docs/Cloud.md) |
+
+---
+
 ## Evidence (validated baseline)
 
 **Historical validation (11 trading days, October 2024):**
 
-- **Weekly return:** **+73.69%**
-- **Winning days:** **10/11 (91%)**
-- **Max drawdown:** **-0.84%** (reported as ~96% reduction vs baseline)
-- **Profit factor:** **194.00**
-- **Monthly projection (compounded):** **+508%**
+| Metric | Value |
+|--------|--------|
+| **Weekly return** | **+73.69%** |
+| **Winning days** | **10/11 (91%)** |
+| **Max drawdown** | **-0.84%** (~96% reduction vs baseline) |
+| **Profit factor** | **194.00** |
+| **Monthly projection (compounded)** | **+508%** |
 
-> Notes: Validation results reflect the documented test window and system configuration used at the time. Real-world performance will vary due to fills, spreads, latency, volatility regimes, and broker constraints. This project is not financial advice.
+> Validation results reflect the documented test window and system configuration used at the time. Real-world performance will vary due to fills, spreads, latency, volatility regimes, and broker constraints. **This project is not financial advice.** See [Disclaimer](#disclaimer).
 
 ---
 
@@ -39,6 +54,16 @@ This repository contains:
 
 ---
 
+## What is ORB + 0DTE?
+
+**Opening Range Breakout (ORB)** uses the first minutes of the session (e.g. 15–60 minutes) to define a range (high/low). Breakouts above or below that range are used as trade signals — a well-known pattern in systematic equity and index trading (with variants across 15–60 minute buckets and different confirmation rules).
+
+**0DTE (zero days to expiration)** options expire the same day. They offer high gamma and convexity: small moves in the underlying can produce large percentage moves in the option. They are also highly time-sensitive and can become worthless by expiry, so execution and risk controls are critical.
+
+**This repo** combines both: ORB identifies high-conviction breakouts; the **easy0DTE** overlay applies 0DTE options only to a filtered subset of those signals (convex eligibility, strike selection, position sizing). The result is selective convex amplification with broker-only data and multi-layer risk controls.
+
+---
+
 ## End-to-end flow (one minute)
 
 Typical flow:
@@ -52,19 +77,46 @@ Key timing (PT):
 - **7:30** batch execution  
 - **All day** monitoring + exits + reporting
 
+### Architecture sequence
+
+```mermaid
+flowchart LR
+  A[OAuth] --> B[Good Morning]
+  B --> C[ORB Capture]
+  C --> D[Validation 7:00/7:15]
+  D --> E[Signal Collection]
+  E --> F[Execute]
+  F --> G[Monitor]
+  G --> H[EOD]
+```
+
+High-level sequence: **OAuth** → **ORB Capture** (6:30–6:45 PT) → **Validation candle** (7:00/7:15) → **Signal Collection** (ORB + 0DTE filters) → **Execution** (7:30) → **Position monitoring** (trailing, breakeven, exits) → **End-of-day** close and reporting. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [docs/Strategy.md](docs/Strategy.md) for detail.
+
 ---
 
-## Guardrails (high level)
+## Risk controls & guardrails
 
 Designed to reduce failure modes common in automated trading:
 
-- **Risk engine & position sizing controls** (caps, redistribution, safety floors)
-- **Market condition / "red day" filtering** (portfolio + signal level controls)
-- **Duplicate prevention + trade persistence**
-- **Exit system + trailing/breakeven logic** with monitoring loop
-- **Holiday and low-liquidity day avoidance** (config-driven)
+- **Risk engine & position sizing** — Caps, redistribution, safety floors, ADV-based slip guard.
+- **Market condition / "red day" filtering** — Portfolio-level and signal-level controls to avoid trading in unfavorable regimes.
+- **Duplicate prevention & trade persistence** — Idempotent behavior and state stored in GCS.
+- **Exit system** — Trailing stops, breakeven logic, time-based and P&L-based exits, with a monitoring loop.
+- **Holiday & low-liquidity avoidance** — Config-driven calendar and session checks.
 
-For full detail: see **[docs/Risk.md](docs/Risk.md)** and **[docs/Strategy.md](docs/Strategy.md)**.
+For full detail: [docs/Risk.md](docs/Risk.md) and [docs/Strategy.md](docs/Strategy.md).
+
+---
+
+## Performance & backtest
+
+| Placeholder | Description |
+|-------------|-------------|
+| **Equity curve** | Full equity curve and drawdown charts are maintained in internal docs and performance packs. |
+| **Backtest overview** | Backtest methodology, windows, and assumptions are documented in [docs/Strategy.md](docs/Strategy.md). |
+| **Win rate & summary** | Validated baseline metrics are in the [Evidence](#evidence-validated-baseline) section above. |
+
+A full performance pack (tables, charts, sensitivity notes) lives in the production documentation and is not published in this public repo. Use the Evidence table and [docs/Strategy.md](docs/Strategy.md) for reproducibility context.
 
 ---
 
@@ -144,7 +196,7 @@ See [easyCollector/README.md](easyCollector/README.md) for collector run + deplo
 
 ## Disclaimer
 
-This repository is provided for **educational and research purposes only** and does not constitute financial advice. Trading involves substantial risk and may result in significant losses. Always validate thoroughly in a simulation environment before any live usage.
+**This repository is for educational and research purposes only. It does not constitute financial, investment, or trading advice.** Trading equities and options involves substantial risk of loss. Past performance (including the validated baseline above) does not guarantee future results. Fills, slippage, latency, and broker constraints will affect live results. You are solely responsible for your own trading and risk decisions. Always validate thoroughly in a simulation or demo environment before any live usage. Consult a qualified professional for advice specific to your situation.
 
 ---
 
