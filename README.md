@@ -47,6 +47,20 @@
 
 ---
 
+### Dual-Strategy Integration (phases)
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                 Easy ORB 0DTE Strategy                      │
+│                  (ORB ETF + 0DTE Options)                   │
+├─────────────────────────────────────────────────────────────┤
+│  Phase 1: ORB Capture (6:30-6:45 AM PT) - SHARED          │
+│  Phase 2: Signal Collection & Rules (7:15-7:30 AM PT)       │
+│  Phase 3: Dual Trade Execution (7:30 AM PT)               │
+│  Phase 4: Position Monitoring (Throughout Day)             │
+└─────────────────────────────────────────────────────────────┘
+```
+
 ## 📊 **Proven Performance**
 
 ### **Historical Validation - 11 Days Real Market Data (October 2024)**
@@ -71,141 +85,6 @@
 - **$50,000**: +60-70% weekly (projected)
 
 ---
-
-## 🏗 System Architecture
-
-### System summary
-
-The system is built for production: a single broker-only data path (E*TRADE), no third-party market-data dependencies, and fail-safe behavior when the broker is unavailable. Risk is enforced in layers: capital allocation and max position caps in configuration; drawdown and daily-loss guards and safe mode in `PrimeRiskManager` / `PrimeDemoRiskManager`; ADV-based exposure caps (Slip Guard) and batch position sizing before any order is sent. Latency is handled by async batch quoting (`PrimeDataManager.get_batch_quotes`, 25 symbols per call), a configurable main-loop interval, and GCS-backed persistence so validation candle and signal collection state survive restarts and multi-instance runs. Observability is built in: structured `PIPELINE | STEP` logs for cloud diagnosis, `DailyRunTracker` (GCS markers for ORB capture, signal collection, execution), `PrimeAlertManager` (Telegram for alerts and execution summaries), and optional GCP logging.
-
-### Section A — Executive architecture
-
-```mermaid
-flowchart LR
-  subgraph MarketData["Market Data"]
-    DM[PrimeDataManager]
-    GCS1[GCS Persistence]
-  end
-  subgraph FeaturePipeline["Feature Pipeline"]
-    ORB[ORB Capture]
-    VC[Validation Candle 7:00/7:15]
-  end
-  subgraph DecisionEngine["Decision Engine"]
-    ORBM[PrimeORBStrategyManager]
-    DTE[Prime0DTEStrategyManager]
-  end
-  subgraph RiskLayer["Risk Layer"]
-    RM[PrimeRiskManager / PrimeDemoRiskManager]
-  end
-  subgraph ExecutionLayer["Execution Layer"]
-    ETF[MockTradingExecutor / PrimeETradeTrading]
-    OPT[Options Executor]
-  end
-  subgraph Observability["Observability"]
-    ALERT[PrimeAlertManager]
-    TRACK[DailyRunTracker]
-    LOG[PIPELINE logging]
-  end
-
-  MarketData --> FeaturePipeline
-  FeaturePipeline --> DecisionEngine
-  DecisionEngine --> RiskLayer
-  RiskLayer --> ExecutionLayer
-  ExecutionLayer --> Observability
-```
-
-### Section B — Technical architecture
-
-```mermaid
-flowchart TB
-  subgraph Broker["Broker / Exchange APIs"]
-    ET[PrimeETradeTrading]
-    ETO[ETradeOptionsAPI]
-  end
-
-  subgraph DataIngestion["Data ingestion"]
-    DM[PrimeDataManager]
-    DM --> |get_batch_quotes| ET
-  end
-
-  subgraph RateCache["Rate limit + cache"]
-    BATCH["Batch 25 symbols/call"]
-    CACHE["TTLCache / in-memory"]
-  end
-
-  subgraph Indicators["Indicator computation"]
-    ORB_DATA["ORB high/low"]
-    VOL["Volume color 7:00-7:15"]
-  end
-
-  subgraph Decision["Decision engine"]
-    ORB_RULES["ORB breakout rules"]
-    DTE_OVERLAY["0DTE overlay"]
-    CONVEX[ConvexEligibilityFilter]
-    HARD[Hard gate]
-  end
-
-  subgraph ConfidenceGate["Confidence gate"]
-    RED[Red Day filter]
-    CONVEX_SCORE["Convex score ≥ 0.75"]
-  end
-
-  subgraph RiskSafeguards["Risk safeguards"]
-    BATCH_SIZE["Batch position sizing"]
-    ADV_CAP["ADV cap Slip Guard"]
-    DD[Drawdown guard]
-    CAP_FLOOR["Capital floor / max position %"]
-  end
-
-  subgraph BrokerAbstraction["Broker abstraction"]
-    UTM[PrimeUnifiedTradeManager]
-    UTM --> ET
-  end
-
-  subgraph OrderRouter["Order router"]
-    ORB_EXEC["ORB ETF path"]
-    DTE_EXEC["0DTE options path"]
-  end
-
-  subgraph Lifecycle["Trade lifecycle tracker"]
-    DRT[DailyRunTracker]
-    STEALTH[PrimeStealthTrailing]
-  end
-
-  subgraph Telemetry["Telemetry + logging"]
-    PIPELINE["PIPELINE | STEP"]
-    GCP_LOG["GCP logging optional"]
-  end
-
-  subgraph Alerts["Alerts / monitoring"]
-    AM[PrimeAlertManager]
-  end
-
-  DataIngestion --> RateCache
-  RateCache --> Indicators
-  Indicators --> Decision
-  Decision --> ConfidenceGate
-  ConfidenceGate --> RiskSafeguards
-  RiskSafeguards --> BrokerAbstraction
-  BrokerAbstraction --> OrderRouter
-  OrderRouter --> Lifecycle
-  Lifecycle --> Telemetry
-  Telemetry --> Alerts
-```
-
-### Dual-Strategy Integration (phases)
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                 Easy ORB 0DTE Strategy                      │
-│                  (ORB ETF + 0DTE Options)                   │
-├─────────────────────────────────────────────────────────────┤
-│  Phase 1: ORB Capture (6:30-6:45 AM PT) - SHARED          │
-│  Phase 2: Signal Collection & Rules (7:15-7:30 AM PT)       │
-│  Phase 3: Dual Trade Execution (7:30 AM PT)               │
-│  Phase 4: Position Monitoring (Throughout Day)             │
-└─────────────────────────────────────────────────────────────┘
-```
 
 ### Key components
 
@@ -426,6 +305,127 @@ sequenceDiagram
 **End of Day**: All positions closed at 12:55 PM PT (5 minutes before market close)
 
 ---
+
+## 🏗 System Architecture
+
+### System summary
+
+The system is built for production: a single broker-only data path (E*TRADE), no third-party market-data dependencies, and fail-safe behavior when the broker is unavailable. Risk is enforced in layers: capital allocation and max position caps in configuration; drawdown and daily-loss guards and safe mode in `PrimeRiskManager` / `PrimeDemoRiskManager`; ADV-based exposure caps (Slip Guard) and batch position sizing before any order is sent. Latency is handled by async batch quoting (`PrimeDataManager.get_batch_quotes`, 25 symbols per call), a configurable main-loop interval, and GCS-backed persistence so validation candle and signal collection state survive restarts and multi-instance runs. Observability is built in: structured `PIPELINE | STEP` logs for cloud diagnosis, `DailyRunTracker` (GCS markers for ORB capture, signal collection, execution), `PrimeAlertManager` (Telegram for alerts and execution summaries), and optional GCP logging.
+
+### Section A — Executive architecture
+
+```mermaid
+flowchart LR
+  subgraph MarketData["Market Data"]
+    DM[PrimeDataManager]
+    GCS1[GCS Persistence]
+  end
+  subgraph FeaturePipeline["Feature Pipeline"]
+    ORB[ORB Capture]
+    VC[Validation Candle 7:00/7:15]
+  end
+  subgraph DecisionEngine["Decision Engine"]
+    ORBM[PrimeORBStrategyManager]
+    DTE[Prime0DTEStrategyManager]
+  end
+  subgraph RiskLayer["Risk Layer"]
+    RM[PrimeRiskManager / PrimeDemoRiskManager]
+  end
+  subgraph ExecutionLayer["Execution Layer"]
+    ETF[MockTradingExecutor / PrimeETradeTrading]
+    OPT[Options Executor]
+  end
+  subgraph Observability["Observability"]
+    ALERT[PrimeAlertManager]
+    TRACK[DailyRunTracker]
+    LOG[PIPELINE logging]
+  end
+
+  MarketData --> FeaturePipeline
+  FeaturePipeline --> DecisionEngine
+  DecisionEngine --> RiskLayer
+  RiskLayer --> ExecutionLayer
+  ExecutionLayer --> Observability
+```
+
+### Section B — Technical architecture
+
+```mermaid
+flowchart TB
+  subgraph Broker["Broker / Exchange APIs"]
+    ET[PrimeETradeTrading]
+    ETO[ETradeOptionsAPI]
+  end
+
+  subgraph DataIngestion["Data ingestion"]
+    DM[PrimeDataManager]
+    DM --> |get_batch_quotes| ET
+  end
+
+  subgraph RateCache["Rate limit + cache"]
+    BATCH["Batch 25 symbols/call"]
+    CACHE["TTLCache / in-memory"]
+  end
+
+  subgraph Indicators["Indicator computation"]
+    ORB_DATA["ORB high/low"]
+    VOL["Volume color 7:00-7:15"]
+  end
+
+  subgraph Decision["Decision engine"]
+    ORB_RULES["ORB breakout rules"]
+    DTE_OVERLAY["0DTE overlay"]
+    CONVEX[ConvexEligibilityFilter]
+    HARD[Hard gate]
+  end
+
+  subgraph ConfidenceGate["Confidence gate"]
+    RED[Red Day filter]
+    CONVEX_SCORE["Convex score ≥ 0.75"]
+  end
+
+  subgraph RiskSafeguards["Risk safeguards"]
+    BATCH_SIZE["Batch position sizing"]
+    ADV_CAP["ADV cap Slip Guard"]
+    DD[Drawdown guard]
+    CAP_FLOOR["Capital floor / max position %"]
+  end
+
+  subgraph BrokerAbstraction["Broker abstraction"]
+    UTM[PrimeUnifiedTradeManager]
+    UTM --> ET
+  end
+
+  subgraph OrderRouter["Order router"]
+    ORB_EXEC["ORB ETF path"]
+    DTE_EXEC["0DTE options path"]
+  end
+
+  subgraph Lifecycle["Trade lifecycle tracker"]
+    DRT[DailyRunTracker]
+    STEALTH[PrimeStealthTrailing]
+  end
+
+  subgraph Telemetry["Telemetry + logging"]
+    PIPELINE["PIPELINE | STEP"]
+    GCP_LOG["GCP logging optional"]
+  end
+
+  subgraph Alerts["Alerts / monitoring"]
+    AM[PrimeAlertManager]
+  end
+
+  DataIngestion --> RateCache
+  RateCache --> Indicators
+  Indicators --> Decision
+  Decision --> ConfidenceGate
+  ConfidenceGate --> RiskSafeguards
+  RiskSafeguards --> BrokerAbstraction
+  BrokerAbstraction --> OrderRouter
+  OrderRouter --> Lifecycle
+  Lifecycle --> Telemetry
+  Telemetry --> Alerts
+```
 
 ## 🚀 **Key Features**
 
